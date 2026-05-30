@@ -194,19 +194,23 @@ exports['ox_target']:addGlobalPlayer({
 -- target give money input form
 ---------------------------------
 function OpenGiveMoneyMenu(targetPlayerId)
-    local input = lib.inputDialog(locale('cl_lang_8')..targetPlayerId, {
+    local input = lib.inputDialog(locale('cl_lang_8') .. tostring(targetPlayerId), {
         {
             type = 'number',
             label = locale('cl_lang_9'),
+            min = 1, -- Prevents entering 0 or negative numbers in the UI itself
+            required = true
         },
     })
-    if input then
-        local amount = tonumber(input[1])
 
-        if amount and amount > 0 then
-            TriggerServerEvent('rsg-banking:server:givemoney', targetPlayerId, amount)
-        else
-            lib.notify({ title = locale('cl_lang_10'), type = 'error' })
-        end
+    -- Check if the user didn't cancel the dialog
+    if not input or not input[1] then return end
+
+    local amount = tonumber(input[1])
+
+    if amount and amount > 0 then
+        TriggerServerEvent('rsg-banking:server:givemoney', targetPlayerId, amount)
+    else
+        lib.notify({ title = locale('cl_lang_10'), type = 'error' })
     end
 end

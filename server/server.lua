@@ -4,11 +4,49 @@ lib.locale()
 math = lib.math
 local SendDiscordWebhook = require('server.discord_webhook')
 
+local rateLimits = {}
+local function isRateLimited(source, eventType)
+    local maxCalls = Config.RateLimitMaxCalls
+    local windowSec = Config.RateLimitWindowSec
+    if not rateLimits[source] then rateLimits[source] = {} end
+    if not rateLimits[source][eventType] then rateLimits[source][eventType] = {} end
+    local now = os.time()
+    local window = rateLimits[source][eventType]
+    for i = #window, 1, -1 do
+        if now - window[i] > windowSec then
+            table.remove(window, i)
+        end
+    end
+    if #window >= maxCalls then
+        print(('[%s] Rate limit exceeded for player %s on %s'):format(GetCurrentResourceName(), source, eventType))
+        return true
+    end
+    window[#window + 1] = now
+    return false
+end
+
+local function isValidMoneyType(moneytype)
+    for _, v in ipairs(Config.BankLocations) do
+        if v.moneytype == moneytype then return true end
+    end
+    return false
+end
+
+local ValidTowns = { Armadillo = true, Blackwater = true, Rhodes = true, SaintDenis = true, Valentine = true }
+local function isValidTown(town)
+    return ValidTowns[town] == true
+end
+
 ---------------
 -- stash
 ----------------
 RegisterNetEvent('rsg-banking:server:opensafedeposit', function(town)
     local src = source
+    if isRateLimited(src, 'opensafedeposit') then return end
+    if not isValidTown(town) then
+        print(('[%s] Player %s attempted to open invalid town: %s'):format(GetCurrentResourceName(), src, town))
+        return
+    end
     local Player = RSGCore.Functions.GetPlayer(src)
     if not Player then return end
     local data = { label = locale('sv_lang'), maxweight = Config.StorageMaxWeight, slots = Config.StorageMaxSlots }
@@ -24,11 +62,15 @@ RSGCore.Functions.CreateCallback('rsg-banking:getBankingInformation', function(s
 
     local Player = RSGCore.Functions.GetPlayer(source)
     if not Player then return cb(nil) end
+    if not isValidMoneyType(moneytype) then
+        print(('[%s] Player %s attempted to access invalid moneytype: %s'):format(GetCurrentResourceName(), source, moneytype))
+        return cb(nil)
+    end
 
     local banking = nil
     local cash = Player.Functions.GetMoney('cash')
     if Player.PlayerData.money[moneytype] then
-        banking = tonumber(Player.PlayerData.money[moneytype])
+        banking = Player.PlayerData.money[moneytype]
     end
 
     cb({bank = banking, cash = cash})
@@ -39,18 +81,29 @@ end)
 ---------------------------------
 RegisterNetEvent('rsg-banking:server:transact', function(type, amount, moneytype)
     local src = source
+    if isRateLimited(src, 'transact') then return end
+    if not isValidMoneyType(moneytype) then
+        print(('[%s] Player %s attempted to transact with invalid moneytype: %s'):format(GetCurrentResourceName(), src, moneytype))
+        return
+    end
     local Player = RSGCore.Functions.GetPlayer(src)
+    if not Player then return end
     local currentCash = Player.Functions.GetMoney('cash')
     local currentBank = Player.Functions.GetMoney(moneytype)
 
     amount = math.round(amount, 2)
     if amount <= 0 then
         lib.notify(src, {title = locale('sv_lang_1'), type = 'error'})
+        print(('[%s] Player %s attempted transaction with invalid amount: %s'):format(GetCurrentResourceName(), src, amount))
         return
     end
 
-    -- bank-withdraw
     if type == 1 then
+        if amount > Config.MaxWithdraw then
+            lib.notify(src, {title = locale('sv_lang_1'), type = 'error'})
+            print(('[%s] Player %s exceeded max withdraw amount: %s > %s'):format(GetCurrentResourceName(), src, amount, Config.MaxWithdraw))
+            return
+        end
         local bankRemove = amount
         if Config.WithdrawChargeRate and Config.WithdrawChargeRate > 0 then 
             local charge = amount * (Config.WithdrawChargeRate / 100)
@@ -62,53 +115,61 @@ RegisterNetEvent('rsg-banking:server:transact', function(type, amount, moneytype
             Player.Functions.AddMoney('cash', amount, 'bank-withdraw')
             local newBankBalance = Player.Functions.GetMoney(moneytype)
             TriggerClientEvent('rsg-banking:client:UpdateBanking', src, newBankBalance, moneytype)
-            
-            -- Discord webhook for withdrawals
             if Config.Discord.TrackWithdrawals and amount >= Config.Discord.TransactionThreshold then
                 local playerName = Player.PlayerData.charinfo.firstname .. " " .. Player.PlayerData.charinfo.lastname
                 SendDiscordWebhook(playerName, "Bank (" .. moneytype .. ")", amount, "Withdrawal")
             end
         else
             lib.notify(src, {title = locale('sv_lang_2'), type = 'error'})
+            print(('[%s] Player %s insufficient bank funds for withdraw of %s'):format(GetCurrentResourceName(), src, bankRemove))
         end
+        return
     end
 
-    -- bank-deposit
     if type == 2 then
+        if amount > Config.MaxDeposit then
+            lib.notify(src, {title = locale('sv_lang_1'), type = 'error'})
+            print(('[%s] Player %s exceeded max deposit amount: %s > %s'):format(GetCurrentResourceName(), src, amount, Config.MaxDeposit))
+            return
+        end
         if currentCash >= amount then
-            Player.Functions.RemoveMoney('cash', tonumber(amount), 'bank-deposit')
-            Player.Functions.AddMoney(moneytype, tonumber(amount), 'bank-deposit')
+            Player.Functions.RemoveMoney('cash', amount, 'bank-deposit')
+            Player.Functions.AddMoney(moneytype, amount, 'bank-deposit')
             local newBankBalance = Player.Functions.GetMoney(moneytype)
             TriggerClientEvent('rsg-banking:client:UpdateBanking', src, newBankBalance, moneytype)
-            
-            -- Discord webhook for deposits
             if Config.Discord.TrackDeposits and amount >= Config.Discord.TransactionThreshold then
                 local playerName = Player.PlayerData.charinfo.firstname .. " " .. Player.PlayerData.charinfo.lastname
                 SendDiscordWebhook(playerName, "Bank (" .. moneytype .. ")", amount, "Deposit")
             end
         else
             lib.notify(src, {title = locale('sv_lang_2'), type = 'error'})
+            print(('[%s] Player %s insufficient cash for deposit of %s'):format(GetCurrentResourceName(), src, amount))
         end
+        return
     end
 
-    -- create money_clip
     if type == 3 then
+        if amount > Config.MaxMoneyClip then
+            lib.notify(src, {title = locale('sv_lang_1'), type = 'error'})
+            print(('[%s] Player %s exceeded max money clip amount: %s > %s'):format(GetCurrentResourceName(), src, amount, Config.MaxMoneyClip))
+            return
+        end
         if currentBank >= amount then
             local info = { money = amount }
-            Player.Functions.RemoveMoney(moneytype, tonumber(amount), 'bank-money_clip')
+            Player.Functions.RemoveMoney(moneytype, amount, 'bank-money_clip')
             Player.Functions.AddItem('money_clip', 1, false, info)
             local newBankBalance = Player.Functions.GetMoney(moneytype)
             TriggerClientEvent('rsg-banking:client:UpdateBanking', src, newBankBalance, moneytype)
             lib.notify(src, { title = locale('sv_lang_9'), description = locale('sv_lang_10') .. ' ' .. amount .. ' ' .. locale('sv_lang_11'), type = 'success' })
-            
-            -- Discord webhook for money clip creation
             if Config.Discord.TrackMoneyClips and amount >= Config.Discord.TransactionThreshold then
                 local playerName = Player.PlayerData.charinfo.firstname .. " " .. Player.PlayerData.charinfo.lastname
                 SendDiscordWebhook(playerName, "Money Clip", amount, "Money Clip Created")
             end
         else
             lib.notify(src, {title = locale('sv_lang_2'), type = 'error'})
+            print(('[%s] Player %s insufficient bank funds for money clip of %s'):format(GetCurrentResourceName(), src, amount))
         end
+        return
     end
 
 end)
@@ -211,8 +272,21 @@ end, 'user')
 ---------------------------------
 RegisterNetEvent('rsg-banking:server:givemoney', function(targetPlayerId, amount)
     local src = source
+    if isRateLimited(src, 'givemoney') then return end
+    local targetId = tonumber(targetPlayerId)
+    amount = math.round(amount, 2)
+    if amount <= 0 then
+        TriggerClientEvent('lib.notify', src, { title = locale('sv_lang_18'), description = locale('sv_lang_26'), type = 'error' })
+        print(('[%s] Player %s attempted transfer with invalid amount: %s'):format(GetCurrentResourceName(), src, amount))
+        return
+    end
+    if amount > Config.MaxTransfer then
+        TriggerClientEvent('lib.notify', src, { title = locale('sv_lang_18'), description = locale('sv_lang_26'), type = 'error' })
+        print(('[%s] Player %s exceeded max transfer amount: %s > %s'):format(GetCurrentResourceName(), src, amount, Config.MaxTransfer))
+        return
+    end
     local Player = RSGCore.Functions.GetPlayer(src)
-    local targetPlayer = RSGCore.Functions.GetPlayer(tonumber(targetPlayerId))
+    local targetPlayer = RSGCore.Functions.GetPlayer(targetId)
     
     if not Player then
         TriggerClientEvent('lib.notify', src, { title = locale('sv_lang_18'), description = locale('sv_lang_19'), type = 'error' })
@@ -229,8 +303,6 @@ RegisterNetEvent('rsg-banking:server:givemoney', function(targetPlayerId, amount
         targetPlayer.Functions.AddMoney('cash', amount)
         TriggerClientEvent('lib.notify', Player.PlayerData.source, { title = locale('sv_lang_21'), description = locale('sv_lang_22') .. amount .. locale('sv_lang_23') .. targetPlayer.PlayerData.charinfo.firstname, type = 'success' })
         TriggerClientEvent('lib.notify', targetPlayer.PlayerData.source, { title = locale('sv_lang_21'), description = locale('sv_lang_24') .. amount .. locale('sv_lang_25') .. Player.PlayerData.charinfo.firstname, type = 'success' })
-        
-        -- Discord webhook for large transactions
         if Config.Discord.TrackTransfers and amount >= Config.Discord.TransactionThreshold then
             local senderName = Player.PlayerData.charinfo.firstname .. " " .. Player.PlayerData.charinfo.lastname
             local receiverName = targetPlayer.PlayerData.charinfo.firstname .. " " .. targetPlayer.PlayerData.charinfo.lastname
@@ -238,5 +310,6 @@ RegisterNetEvent('rsg-banking:server:givemoney', function(targetPlayerId, amount
         end
     else
         TriggerClientEvent('lib.notify', Player.PlayerData.source, { title = locale('sv_lang_18'), description = locale('sv_lang_26'), type = 'error' })
+        print(('[%s] Player %s insufficient cash for transfer of %s'):format(GetCurrentResourceName(), src, amount))
     end
 end)

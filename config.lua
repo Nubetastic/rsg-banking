@@ -22,6 +22,12 @@ Config.AlwaysOpen = true -- sets bank always open if set to true
 Config.UseTarget  = false
 
 Config.WithdrawChargeRate = 0 -- Charge of withdrawing money. Example: if set to 10, when withdrawing 100$, additional 10$ is charged
+Config.MaxWithdraw = 10000
+Config.MaxDeposit = 10000
+Config.MaxMoneyClip = 10000
+Config.MaxTransfer = 5000
+Config.RateLimitMaxCalls = 5
+Config.RateLimitWindowSec = 1
 
 ---------------------------------
 -- bank locations
