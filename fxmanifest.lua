@@ -18,7 +18,6 @@ server_scripts {
 
 client_scripts {
     'client/client.lua',
-    'client/npcs.lua',
 }
 
 ui_page {

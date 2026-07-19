@@ -146,16 +146,16 @@ RegisterNetEvent('rsg-banking:client:safedeposit', function()
     local town = GetMapZoneAtCoords(x,y,z, ZoneTypeId)
 
     if town == -744494798 then
-        town = 'Armadillo'
+        town = 'Valentine'
     end
     if town == 1053078005 then
-        town = 'Blackwater'
+        town = 'Valentine'
     end
     if town == 2046780049 then
-        town = 'Rhodes'
+        town = 'Valentine'
     end
     if town == -765540529 then
-        town = 'SaintDenis'
+        town = 'Valentine'
     end
     if town == 459833523 then
         town = 'Valentine'

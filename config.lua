@@ -36,7 +36,7 @@ Config.BankLocations = {
     {
         name = 'Valentine Bank', -- map blip text
         bankid = 'valbank', -- internal identifier, do not change
-        moneytype = 'valbank', -- type of money that bank handles (RSGCore.Config.Money.MoneyTypes)
+        moneytype = 'bank', -- type of money that bank handles (RSGCore.Config.Money.MoneyTypes)
         coords = vector3(-308.4189, 775.8842, 118.7017),
         npcmodel = 'S_M_M_BankClerk_01',
         npccoords = vector4(-308.14, 773.98, 118.7, 4.75),
@@ -47,7 +47,7 @@ Config.BankLocations = {
     {
         name = 'Rhodes Bank',
         bankid = 'rhobank',
-        moneytype = 'rhobank',
+        moneytype = 'bank',
         coords = vector3(1292.307, -1301.539, 77.04012),
         npcmodel = 'S_M_M_BankClerk_01',
         npccoords = vector4(1291.22, -1303.28, 77.04, 316.53),
@@ -69,7 +69,7 @@ Config.BankLocations = {
     {
         name = 'Blackwater Bank',
         bankid = 'blkbank',
-        moneytype = 'blkbank',
+        moneytype = 'bank',
         coords = vector3(-813.1633, -1277.486, 43.63771),
         npcmodel = 'S_M_M_BankClerk_01',
         npccoords = vector4(-813.2, -1275.38, 43.64, 173.1),
@@ -80,7 +80,7 @@ Config.BankLocations = {
     {
         name = 'Armadillo Bank',
         bankid = 'armbank',
-        moneytype = 'armbank',
+        moneytype = 'bank',
         coords = vector3(-3666.25, -2626.57, -13.59),
         npcmodel = 'S_M_M_BankClerk_01',
         npccoords = vector4(-3666.28, -2628.69, -13.59, 359.78),
@@ -93,6 +93,7 @@ Config.BankLocations = {
 ---------------------------------
 -- bank doors
 ---------------------------------
+--[[
 Config.BankDoors = {
 
     -- valentine ( open = 0 / locked = 1)
@@ -135,3 +136,4 @@ Config.BankDoors = {
     { door = 1366165179, state = 1 }, -- back door
 
 }
+]]
