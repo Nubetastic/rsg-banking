@@ -210,3 +210,7 @@ blood_money_clip = { name = 'blood_money_clip', label = 'Blood Money Clip',  wei
 - **RSG / Rexshack-RedM** — framework integration & localization support  
 - **Community translators** — multi-language support
 - License: GPL‑3.0
+
+
+Modified from https://github.com/Rexshack-RedM/rsg-banking, Aug 2025.
+See the Git history for changes. Distributed under GNU GPLv3.
