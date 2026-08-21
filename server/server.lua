@@ -4,6 +4,16 @@ lib.locale()
 math = lib.math
 local SendDiscordWebhook = require('server.discord_webhook')
 
+exports('GetBankBalance', function(citizenid)
+    local Player = RSGCore.Functions.GetPlayerByCitizenId(citizenid)
+    if not Player then
+        Player = RSGCore.Functions.GetOfflinePlayerByCitizenId(citizenid)
+    end
+    if not Player then return 0 end
+
+    return tonumber(Player.PlayerData.money.bank) or 0
+end)
+
 local rateLimits = {}
 local function isRateLimited(source, eventType)
     local maxCalls = Config.RateLimitMaxCalls
