@@ -26,25 +26,30 @@ CreateThread(function()
 end)
 
 ---------------------------------
--- set bank door default state
+-- register bank entrance doors
 ---------------------------------
 CreateThread(function()
     for _,v in pairs(Config.BankDoors) do
         AddDoorToSystemNew(v.door, 1, 1, 0, 0, 0, 0)
-        DoorSystemSetDoorState(v.door, v.state)
     end
 end)
+
+local IsBankClosed = function()
+    if Config.AlwaysOpen then return false end
+    local hour = GetClockHours()
+    if Config.OpenTime > Config.CloseTime then
+        return hour >= Config.CloseTime and hour < Config.OpenTime
+    end
+    return hour < Config.OpenTime or hour >= Config.CloseTime
+end
 
 ---------------------------------
 -- open bank with opening hours
 ---------------------------------
 local OpenBank = function(moneytype)
-    if not Config.AlwaysOpen then
-        local hour = GetClockHours()
-        if (hour < Config.OpenTime) or (hour >= Config.CloseTime) then
-            lib.notify({ title = locale('cl_lang_2'), description = locale('cl_lang_3') .. ' ' .. Config.OpenTime .. ' ' .. locale('cl_lang_4'), type = 'error', icon = 'fa-solid fa-building-columns', iconAnimation = 'shake', duration = 7000 })
-            return
-        end
+    if IsBankClosed() then
+        lib.notify({ title = locale('cl_lang_2'), description = locale('cl_lang_3') .. ' ' .. Config.OpenTime .. ' ' .. locale('cl_lang_4'), type = 'error', icon = 'fa-solid fa-building-columns', iconAnimation = 'shake', duration = 7000 })
+        return
     end
     RSGCore.Functions.TriggerCallback('rsg-banking:getBankingInformation', function(banking)
         if banking ~= nil then
@@ -61,9 +66,12 @@ end
 -- get bank hours function
 ---------------------------------
 local GetBankHours = function()
-    local hour = GetClockHours()
+    local closed = IsBankClosed()
+    for _, v in pairs(Config.BankDoors) do
+        DoorSystemSetDoorState(v.door, closed and 1 or v.state)
+    end
     if not Config.AlwaysOpen then
-        if (hour < Config.OpenTime) or (hour >= Config.CloseTime) then
+        if closed then
             for k, v in pairs(SpawnedBankBlips) do
                 BlipAddModifier(v, joaat('BLIP_MODIFIER_MP_COLOR_2'))
             end
